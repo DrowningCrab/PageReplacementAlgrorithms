@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="vi" class="h-full bg-blue-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mô phỏng Thuật toán Thay thế trang</title>
+    <!-- Tải Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Sử dụng font Inter */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        /* Thêm font Inter từ Google Fonts */
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    </style>
+</head>
+<body class="h-full flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-blue-50">
+    <main class="max-w-4xl w-full mx-auto p-8 bg-white shadow-xl rounded-2xl">
+        <h1 class="text-3xl font-bold text-center text-blue-700 mb-8">
+            Trình mô phỏng Thuật toán Thay thế trang
+        </h1>
+
+        <!-- Khu vực cấu hình -->
+        <div class="space-y-6">
+            <div>
+                <label for="ref-string" class="block text-sm font-medium text-gray-700 mb-2">
+                    Chuỗi tham chiếu (Phân tách bằng dấu phẩy, dấu cách hoặc xuống dòng)
+                </label>
+                <textarea id="ref-string" rows="5" class="w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500 font-mono text-sm">7, 0, 1, 2, 0, 3, 0, 4, 2, 3, 0, 3, 2, 1, 2, 0, 1, 7, 0, 1, 5, 6, 7, 0, 1, 2, 3, 7, 6, 5, 4, 3, 2, 1, 0, 7, 0, 1, 2, 3, 4, 5, 6, 7, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 7, 8, 9, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6</textarea>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label for="num-frames" class="block text-sm font-medium text-gray-700">
+                        Số khung trang (Frames)
+                    </label>
+                    <input type="number" id="num-frames" value="4" min="1" class="mt-2 w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="window-size" class="block text-sm font-medium text-gray-700">
+                        Cửa sổ Working Set
+                    </label>
+                    <input type="number" id="window-size" value="7" min="1" class="mt-2 w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                <div>
+                    <label for="aging-bits" class="block text-sm font-medium text-gray-700">
+                        Số bits (NFU/Aging)
+                    </label>
+                    <input type="number" id="aging-bits" value="8" min="2" max="32" class="mt-2 w-full p-3 border border-gray-300 rounded-lg shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+            </div>
+
+            <button id="run-button" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-lg font-medium text-white bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition duration-300 ease-in-out">
+                Chạy mô phỏng
+            </button>
+            <div id="error-message" class="text-red-600 text-sm text-center h-5"></div>
+        </div>
+
+        <!-- Khu vực kết quả -->
+        <div id="results-container" class="mt-10 hidden">
+            <h2 class="text-2xl font-semibold text-center text-indigo-700 mb-6">
+                Bảng tổng hợp hiệu suất
+            </h2>
+            <div class="overflow-x-auto shadow-md rounded-lg">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-indigo-100">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-indigo-800 uppercase tracking-wider">
+                                Thuật toán
+                            </th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-indigo-800 uppercase tracking-wider">
+                                Số lỗi trang (Page Faults)
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="results-table-body" class="bg-white divide-y divide-gray-200">
+                        <!-- Dữ liệu sẽ được chèn vào đây bằng JS -->
+                    </tbody>
+                </table>
+            </div>
+            <p class="text-center text-sm text-gray-600 mt-4">
+                Lưu ý: Số lỗi trang càng thấp, hiệu suất càng cao.
+            </p>
+        </div>
+    </main>
+
+    <script>
+        // --- Bắt đầu phần logic JavaScript (dịch từ Python) ---
+
+        /**
+         * Thuật toán First-In, First-Out (FIFO)
+         */
+        function fifo(ref_string, num_frames) {
+            let memory = []; // Hàng đợi (queue)
+            let page_set = new Set(); // Để tra cứu O(1)
+            let page_faults = 0;
+
+            for (const page of ref_string) {
+                if (!page_set.has(page)) {
+                    page_faults++;
+                    memory.push(page); // Thêm vào cuối hàng đợi
+                    page_set.add(page);
+
+                    if (memory.length > num_frames) {
+                        let victim = memory.shift(); // Xóa khỏi đầu hàng đợi
+                        page_set.delete(victim);
+                    }
+                }
+            }
+            return page_faults;
+        }
+
+        /**
+         * Thuật toán Optimal (Tối ưu)
+         */
+        function optimal(ref_string, num_frames) {
+            let memory = [];
+            let page_set = new Set();
+            let page_faults = 0;
+
+            for (let i = 0; i < ref_string.length; i++) {
+                const page = ref_string[i];
+                if (!page_set.has(page)) {
+                    page_faults++;
+                    if (memory.length < num_frames) {
+                        memory.push(page);
+                        page_set.add(page);
+                    } else {
+                        const remaining_string = ref_string.slice(i + 1);
+                        let victim = null;
+                        let furthest_use_index = -1;
+
+                        for (const page_in_mem of memory) {
+                            const next_use_index = remaining_string.indexOf(page_in_mem);
+                            if (next_use_index === -1) {
+                                victim = page_in_mem; // Không được dùng nữa
+                                break;
+                            }
+                            if (next_use_index > furthest_use_index) {
+                                furthest_use_index = next_use_index;
+                                victim = page_in_mem;
+                            }
+                        }
+                        
+                        // Xóa nạn nhân
+                        const victim_index = memory.indexOf(victim);
+                        memory.splice(victim_index, 1);
+                        page_set.delete(victim);
+
+                        // Thêm trang mới
+                        memory.push(page);
+                        page_set.add(page);
+                    }
+                }
+            }
+            return page_faults;
+        }
+
+        /**
+         * Thuật toán Least Recently Used (LRU)
+         */
+        function lru(ref_string, num_frames) {
+            let memory = []; // Dùng như 1 stack: cuối = MRU, đầu = LRU
+            let page_set = new Set();
+            let page_faults = 0;
+
+            for (const page of ref_string) {
+                if (!page_set.has(page)) {
+                    // Miss (Lỗi)
+                    page_faults++;
+                    memory.push(page); // Thêm vào MRU (cuối)
+                    page_set.add(page);
+                    
+                    if (memory.length > num_frames) {
+                        let victim = memory.shift(); // Xóa LRU (đầu)
+                        page_set.delete(victim);
+                    }
+                } else {
+                    // Hit (Trúng)
+                    // Di chuyển trang được hit lên cuối (MRU)
+                    const page_index = memory.indexOf(page);
+                    memory.splice(page_index, 1);
+                    memory.push(page);
+                }
+            }
+            return page_faults;
+        }
+
+        /**
+         * Thuật toán Not Frequently Used (NFU) với "Aging"
+         */
+        function nfu_aging(ref_string, num_frames, bits) {
+            let memory = {}; // { page: counter }
+            let page_faults = 0;
+            const msb = 1 << (bits - 1);
+
+            for (const page of ref_string) {
+                // 1. "Tick" đồng hồ - tất cả các trang già đi
+                for (const p_in_mem in memory) {
+                    memory[p_in_mem] >>= 1;
+                }
+
+                if (!(page in memory)) {
+                    // Miss (Lỗi)
+                    page_faults++;
+                    if (Object.keys(memory).length === num_frames) {
+                        // Tìm nạn nhân (trang có bộ đếm nhỏ nhất)
+                        let victim = null;
+                        let min_counter = Infinity;
+                        for (const [p, counter] of Object.entries(memory)) {
+                            if (counter < min_counter) {
+                                min_counter = counter;
+                                victim = p;
+                            }
+                        }
+                        delete memory[victim];
+                    }
+                    // Thêm trang mới với MSB được set
+                    memory[page] = msb;
+                } else {
+                    // Hit (Trúng)
+                    // Set MSB của trang
+                    memory[page] |= msb;
+                }
+            }
+            return page_faults;
+        }
+
+        /**
+         * Thuật toán Clock (Second-Chance)
+         */
+        function clock(ref_string, num_frames) {
+            // Mảng các object: { page: number | null, useBit: 0 | 1 }
+            let frames = Array(num_frames).fill(null).map(() => ({ page: null, useBit: 0 }));
+            let pointer = 0;
+            let page_faults = 0;
+            let page_set = new Set(); // Để tra cứu nhanh
+
+            for (const page of ref_string) {
+                if (page_set.has(page)) {
+                    // Hit: Tìm trang và set useBit = 1
+                    for (let i = 0; i < num_frames; i++) {
+                        if (frames[i].page === page) {
+                            frames[i].useBit = 1;
+                            break;
+                        }
+                    }
+                } else {
+                    // Fault
+                    page_faults++;
+                    
+                    while (true) {
+                        let current = frames[pointer];
+
+                        if (current.page === null) {
+                            // Khung trống
+                            if (current.page !== null) page_set.delete(current.page); // Vừa thêm
+                            frames[pointer] = { page: page, useBit: 1 };
+                            page_set.add(page);
+                            pointer = (pointer + 1) % num_frames;
+                            break; // Dừng vòng lặp while
+                        } else if (current.useBit === 0) {
+                            // Nạn nhân được tìm thấy
+                            page_set.delete(current.page);
+                            frames[pointer] = { page: page, useBit: 1 };
+                            page_set.add(page);
+                            pointer = (pointer + 1) % num_frames;
+                            break; // Dừng vòng lặp while
+                        } else {
+                            // Cho cơ hội thứ hai
+                            current.useBit = 0;
+                            pointer = (pointer + 1) % num_frames;
+                        }
+                    }
+                }
+            }
+            return page_faults;
+        }
+
+        /**
+         * Thuật toán Working Set
+         */
+        function working_set(ref_string, num_frames, window_size) {
+            let memory = new Set();
+            let last_use_time = {}; // { page: time_of_last_use }
+            let page_faults = 0;
+
+            for (let time = 0; time < ref_string.length; time++) {
+                const page = ref_string[time];
+
+                if (!memory.has(page)) {
+                    // Fault
+                    page_faults++;
+                    if (memory.size < num_frames) {
+                        memory.add(page);
+                    } else {
+                        // Phải tìm nạn nhân
+                        let victim = null;
+
+                        // Ưu tiên 1: Tìm trang không thuộc Working Set
+                        for (const page_in_mem of memory) {
+                            const age = time - last_use_time[page_in_mem];
+                            if (age > window_size) {
+                                victim = page_in_mem;
+                                break;
+                            }
+                        }
+
+                        // Ưu tiên 2: Nếu tất cả đều trong WS, loại bỏ trang LRU
+                        if (victim === null) {
+                            let oldest_time = Infinity;
+                            for (const page_in_mem of memory) {
+                                if (last_use_time[page_in_mem] < oldest_time) {
+                                    oldest_time = last_use_time[page_in_mem];
+                                    victim = page_in_mem;
+                                }
+                            }
+                        }
+                        memory.delete(victim);
+                        memory.add(page);
+                    }
+                }
+                // Cập nhật thời gian sử dụng cuối cùng
+                last_use_time[page] = time;
+            }
+            return page_faults;
+        }
+
+        // --- Logic điều khiển UI ---
+        
+        const runButton = document.getElementById('run-button');
+        const resultsContainer = document.getElementById('results-container');
+        const resultsBody = document.getElementById('results-table-body');
+        const errorMessage = document.getElementById('error-message');
+
+        runButton.addEventListener('click', () => {
+            // 1. Xóa lỗi cũ và ẩn kết quả
+            errorMessage.textContent = '';
+            resultsContainer.classList.add('hidden');
+            resultsBody.innerHTML = '';
+
+            try {
+                // 2. Lấy và phân tích chuỗi tham chiếu
+                const refStringInput = document.getElementById('ref-string').value;
+                // Tách chuỗi bằng dấu phẩy, dấu cách, hoặc xuống dòng; lọc bỏ các chuỗi rỗng
+                const ref_string = refStringInput
+                    .split(/[\s,]+/)
+                    .filter(s => s.trim().length > 0)
+                    .map(Number);
+                
+                if (ref_string.some(isNaN)) {
+                    throw new Error('Chuỗi tham chiếu chứa các giá trị không phải là số.');
+                }
+                
+                if (ref_string.length === 0) {
+                     throw new Error('Chuỗi tham chiếu không được để trống.');
+                }
+
+                // 3. Lấy các tham số
+                const num_frames = parseInt(document.getElementById('num-frames').value, 10);
+                const window_size_ws = parseInt(document.getElementById('window-size').value, 10);
+                const aging_bits = parseInt(document.getElementById('aging-bits').value, 10);
+
+                if (isNaN(num_frames) || num_frames <= 0) throw new Error('Số khung trang phải là số dương.');
+                if (isNaN(window_size_ws) || window_size_ws <= 0) throw new Error('Cửa sổ Working Set phải là số dương.');
+                if (isNaN(aging_bits) || aging_bits <= 1) throw new Error('Số bits (Aging) phải lớn hơn 1.');
+
+                // 4. Chạy mô phỏng
+                const results = [];
+                results.push({ name: "FIFO", faults: fifo(ref_string, num_frames) });
+                results.push({ name: "Optimal", faults: optimal(ref_string, num_frames) });
+                results.push({ name: "LRU", faults: lru(ref_string, num_frames) });
+                results.push({ name: "NFU (Aging)", faults: nfu_aging(ref_string, num_frames, aging_bits) });
+                results.push({ name: "Clock", faults: clock(ref_string, num_frames) });
+                results.push({ name: "Working Set", faults: working_set(ref_string, num_frames, window_size_ws) });
+
+                // 5. Hiển thị kết quả
+                results.forEach(res => {
+                    const row = document.createElement('tr');
+                    let rowClass = 'bg-white';
+                    let nameClass = 'text-gray-900';
+
+                    // Làm nổi bật 3 thuật toán chính
+                    switch (res.name) {
+                        case 'Optimal':
+                            rowClass = 'bg-green-100';
+                            nameClass = 'text-green-900 font-bold';
+                            break;
+                        case 'LRU':
+                            rowClass = 'bg-blue-100';
+                            nameClass = 'text-blue-900 font-bold';
+                            break;
+                        case 'FIFO':
+                            rowClass = 'bg-yellow-100';
+                            nameClass = 'text-yellow-900 font-bold';
+                            break;
+                    }
+                    
+                    row.className = `${rowClass} hover:bg-gray-50 transition-colors duration-150`;
+
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium ${nameClass}">${res.name}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                            <div class="text-sm text-gray-700 font-semibold">${res.faults}</div>
+                        </td>
+                    `;
+                    resultsBody.appendChild(row);
+                });
+
+                resultsContainer.classList.remove('hidden');
+
+            } catch (error) {
+                errorMessage.textContent = `Lỗi: ${error.message}`;
+            }
+        });
+
+    </script>
+</body>
+</html>
+
